@@ -1,29 +1,66 @@
 #include "restapi.h"
+#include <boost/json/src.hpp>
 
 restapi::restapi(boost::asio::ip::tcp::socket socket) : m_socket(std::move(socket)) {}
 
 void restapi::run()
 {
     this->read_request();
+    this->log();
+    this->check_deadline();
+}
+
+void restapi::route(const std::string& path, const boost::json::object& message)
+{
+    this->m_paths.push_back(path);
+    this->m_messages.push_back(message);
+}
+
+void restapi::connect(boost::asio::ip::tcp::acceptor& acceptor, boost::asio::ip::tcp::socket& socket)
+{
+    acceptor.async_accept(socket,
+    [&](boost::beast::error_code ec) {
+        if (!ec) {
+          auto app = std::make_shared<restapi>(std::move(socket));
+          app->route("/hello", { { "status", 200 }, { "message", "hello, world" } });
+          app->run();
+        }
+        connect(acceptor, socket);
+    });
+}
+
+void restapi::start(const char* host, const u16 port)
+{
+    try {
+        std::cout << "Connecting!\n";
+
+        boost::asio::io_context ioc(1);
+        boost::asio::ip::tcp::acceptor acceptor(ioc, { boost::asio::ip::make_address(host), port });
+        boost::asio::ip::tcp::socket socket(ioc);
+
+        restapi::connect(acceptor, socket);
+
+        std::cout << "Connected!\n";
+        ioc.run();
+
+    }
+    catch (std::exception const& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return;
+    }
+}
+
+void restapi::log()
+{
     std::time_t connected_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+    char* time = std::ctime(&connected_time);
+    time[strlen(time) - 1] = '\0';
     std::cout
-        << std::ctime(&connected_time)
+        << "[" << time << "] "
         << m_socket.remote_endpoint().address().to_string()
         << ":"
         << m_socket.remote_endpoint().port()
         << std::endl;
-    this->check_deadline();
-}
-
-std::size_t restapi::request_count()
-{
-    static std::size_t count = 0;
-    return ++count;
-}
-
-std::time_t restapi::now()
-{
-    return std::time(0);
 }
 
 void restapi::read_request()
@@ -45,7 +82,11 @@ void restapi::process_request()
         case boost::beast::http::verb::get:
             m_response.result(boost::beast::http::status::ok);
             m_response.set(boost::beast::http::field::server, "Beast");
-            this->create_response();
+            BOOST_FOREACH(const std::string& path, this->m_paths) {
+                BOOST_FOREACH(const boost::json::object& message, this->m_messages) {
+                    this->create_response(path, message);
+                }
+            }
             break;
         default:
             m_response.result(boost::beast::http::status::bad_request);
@@ -60,36 +101,18 @@ void restapi::process_request()
     this->write_response();
 }
 
-void restapi::create_response()
+void restapi::create_response(const std::string& path, const boost::json::object& message)
 {
-    if (m_request.target() == "/count") {
-        m_response.set(boost::beast::http::field::content_type, "text/html");
+    if (m_request.target() == path) {
+        std::cout << " - HTTP/1.1 200 OK \n";
+        m_response.set(boost::beast::http::field::content_type, "application/json");
         boost::beast::ostream(m_response.body())
-                << "<html>\n"
-                <<  "<head><title>Request count</title></head>\n"
-                <<  "<body>\n"
-                <<  "<h1>Request count</h1>\n"
-                <<  "<p>There have been "
-                <<  restapi::request_count()
-                <<  " requests so far.</p>\n"
-                <<  "</body>\n"
-                <<  "</html>\n";
-    } else if (m_request.target() == "/time") {
-        m_response.set(boost::beast::http::field::content_type, "text/html");
-        boost::beast::ostream(m_response.body())
-                << "<html>\n"
-                <<  "<head><title>Current time</title></head>\n"
-                <<  "<body>\n"
-                <<  "<h1>Current time</h1>\n"
-                <<  "<p>The current time is "
-                <<  restapi::now()
-                <<  " seconds since the epoch.</p>\n"
-                <<  "</body>\n"
-                <<  "</html>\n";
+            << message;
     } else {
         m_response.result(boost::beast::http::status::not_found);
-        m_response.set(boost::beast::http::field::content_type, "text/plain");
-        boost::beast::ostream(m_response.body()) << "Error 404\n\nFile not found\n";
+        std::cout << " - HTTP/1.1 404 NOT FOUND \n";
+        m_response.set(boost::beast::http::field::content_type, "application/json");
+        boost::beast::ostream(m_response.body()) << boost::json::object({ { "message", "404 not found" } });
     }
 }
 
@@ -100,12 +123,12 @@ void restapi::write_response()
     m_response.content_length(m_response.body().size());
 
     boost::beast::http::async_write(
-        m_socket,
-        m_response,
-        [self](boost::beast::error_code ec, std::size_t) {
-            self->m_socket.shutdown(boost::asio::ip::tcp::socket::shutdown_send, ec);
-            self->m_deadline.cancel();
-        });
+            m_socket,
+            m_response,
+            [self](boost::beast::error_code ec, std::size_t) {
+                self->m_socket.shutdown(boost::asio::ip::tcp::socket::shutdown_send, ec);
+                self->m_deadline.cancel();
+            });
 
 }
 

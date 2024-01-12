@@ -3,3 +3,5 @@
 out/
 cmake-build-debug/
 cmake-build-release/
+external/boost/
+external/boost.zip

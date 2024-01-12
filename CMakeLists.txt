@@ -12,7 +12,7 @@ set(Boost_USE_STATIC_LIBS ON)
 set(Boost_USE_STATIC_RUNTIME ON)
 set(BOOST_ALL_DYN_LINK OFF)
 
-find_package(Boost REQUIRED)
+find_package(Boost COMPONENTS)
 
 include_directories(SYSTEM ${Boost_INCLUDE_DIR})
 add_executable("restapi" src/main.cpp src/restapi/restapi.h src/restapi/restapi.cpp)

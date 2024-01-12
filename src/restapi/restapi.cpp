@@ -36,7 +36,14 @@ void restapi::start(const char* host, const u16 port)
 
         restapi::connect(acceptor, socket);
 
-        std::cout << "[" << get_time() << "] " << "Connected!\n";
+        std::cout <<"[" << get_time() << "] " << "Connected!\n";
+
+        std::cout << "Available routes: ";
+        BOOST_FOREACH(const auto & key, m_routes) {
+            std::cout
+                << key.first << " ";
+        }
+        std::cout << "\n";
 
         ioc.run();
     }
@@ -64,8 +71,7 @@ void restapi::log()
         << "[" << get_time() << "] "
         << m_socket.remote_endpoint().address().to_string()
         << ":"
-        << m_socket.remote_endpoint().port()
-        << std::endl;
+        << m_socket.remote_endpoint().port();
 }
 
 void restapi::read_request()

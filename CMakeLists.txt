@@ -15,6 +15,6 @@ set(BOOST_ALL_DYN_LINK OFF)
 find_package(Boost COMPONENTS)
 
 include_directories(SYSTEM ${Boost_INCLUDE_DIR})
-add_library("restapi" SHARED src/restapi/restapi.h src/restapi/restapi.cpp)
+add_executable("restapi" src/main.cpp src/restapi/restapi.h src/restapi/restapi.cpp)
 target_link_libraries("restapi" ${Boost_LIBRARIES})
 

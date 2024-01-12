@@ -1,6 +1,8 @@
 #include "restapi.h"
 #include <boost/json/src.hpp>
 
+routes_map restapi::m_routes{};
+
 restapi::restapi(boost::asio::ip::tcp::socket socket) : m_socket(std::move(socket)) {}
 
 void restapi::run()
@@ -10,19 +12,12 @@ void restapi::run()
     this->check_deadline();
 }
 
-void restapi::route(const std::string& path, const boost::json::object& message)
-{
-    this->m_paths.push_back(path);
-    this->m_messages.push_back(message);
-}
-
 void restapi::connect(boost::asio::ip::tcp::acceptor& acceptor, boost::asio::ip::tcp::socket& socket)
 {
     acceptor.async_accept(socket,
     [&](boost::beast::error_code ec) {
         if (!ec) {
           auto app = std::make_shared<restapi>(std::move(socket));
-          app->route("/hello", { { "status", 200 }, { "message", "hello, world" } });
           app->run();
         }
         connect(acceptor, socket);
@@ -32,7 +27,8 @@ void restapi::connect(boost::asio::ip::tcp::acceptor& acceptor, boost::asio::ip:
 void restapi::start(const char* host, const u16 port)
 {
     try {
-        std::cout << "Connecting!\n";
+
+        std::cout << "[" << get_time() << "] " << "Connecting...\n";
 
         boost::asio::io_context ioc(1);
         boost::asio::ip::tcp::acceptor acceptor(ioc, { boost::asio::ip::make_address(host), port });
@@ -40,9 +36,9 @@ void restapi::start(const char* host, const u16 port)
 
         restapi::connect(acceptor, socket);
 
-        std::cout << "Connected!\n";
-        ioc.run();
+        std::cout << "[" << get_time() << "] " << "Connected!\n";
 
+        ioc.run();
     }
     catch (std::exception const& e) {
         std::cerr << "Error: " << e.what() << std::endl;
@@ -50,13 +46,22 @@ void restapi::start(const char* host, const u16 port)
     }
 }
 
+const char* restapi::get_time()
+{
+    std::time_t connected_time;
+    char* time;
+
+    connected_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+    time = std::ctime(&connected_time);
+    time[strlen(time) - 1] = '\0';
+
+    return time;
+}
+
 void restapi::log()
 {
-    std::time_t connected_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-    char* time = std::ctime(&connected_time);
-    time[strlen(time) - 1] = '\0';
     std::cout
-        << "[" << time << "] "
+        << "[" << get_time() << "] "
         << m_socket.remote_endpoint().address().to_string()
         << ":"
         << m_socket.remote_endpoint().port()
@@ -82,11 +87,7 @@ void restapi::process_request()
         case boost::beast::http::verb::get:
             m_response.result(boost::beast::http::status::ok);
             m_response.set(boost::beast::http::field::server, "Beast");
-            BOOST_FOREACH(const std::string& path, this->m_paths) {
-                BOOST_FOREACH(const boost::json::object& message, this->m_messages) {
-                    this->create_response(path, message);
-                }
-            }
+            !m_routes[m_request.target()].empty() ? this->create_response(m_request.target()) : this->create_response("");
             break;
         default:
             m_response.result(boost::beast::http::status::bad_request);
@@ -101,13 +102,13 @@ void restapi::process_request()
     this->write_response();
 }
 
-void restapi::create_response(const std::string& path, const boost::json::object& message)
+void restapi::create_response(const std::string& path)
 {
     if (m_request.target() == path) {
         std::cout << " - HTTP/1.1 200 OK \n";
         m_response.set(boost::beast::http::field::content_type, "application/json");
         boost::beast::ostream(m_response.body())
-            << message;
+            << m_routes[path];
     } else {
         m_response.result(boost::beast::http::status::not_found);
         std::cout << " - HTTP/1.1 404 NOT FOUND \n";

@@ -72,7 +72,7 @@ void restapi::log()
         << "[" << get_time() << "] "
         << m_socket.remote_endpoint().address().to_string()
         << ":"
-        << m_socket.remote_endpoint().port();
+        << m_socket.remote_endpoint().port() << " ";
 }
 
 void restapi::read_request()
@@ -112,13 +112,13 @@ void restapi::process_request()
 void restapi::create_response(const std::string& path)
 {
     if (m_request.target() == path) {
-        std::cout << " - HTTP/1.1 200 OK \n";
+        std::cout << m_request.target() << " - HTTP/1.1 200 OK \n";
         m_response.set(boost::beast::http::field::content_type, "application/json");
         boost::beast::ostream(m_response.body())
             << m_routes[path];
     } else {
         m_response.result(boost::beast::http::status::not_found);
-        std::cout << " - HTTP/1.1 404 NOT FOUND \n";
+        std::cout << m_request.target() << " - HTTP/1.1 404 NOT FOUND \n";
         m_response.set(boost::beast::http::field::content_type, "application/json");
         boost::beast::ostream(m_response.body()) << boost::json::object({ { "message", "404 not found" } });
     }

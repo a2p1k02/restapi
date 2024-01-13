@@ -36,7 +36,8 @@ void restapi::start(const char* host, const u16 port)
 
         restapi::connect(acceptor, socket);
 
-        std::cout <<"[" << get_time() << "] " << "Connected!\n";
+        std::cout << "[" << get_time() << "] " << "Connected!\n";
+        std::cout << "Server available on " << host << ":" << port << "\n";
 
         std::cout << "Available routes: ";
         BOOST_FOREACH(const auto & key, m_routes) {

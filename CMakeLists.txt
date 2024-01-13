@@ -6,6 +6,10 @@ if (WIN32)
     set(BOOST_ROOT "external/boost")
 endif (WIN32)
 
+if (UNIX)
+    set(BOOST_ROOT "/usr")
+endif (UNIX)
+
 set(Boost_NO_SYSTEM_PATHS ON)
 set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_LIBS ON)

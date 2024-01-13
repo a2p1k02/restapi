@@ -19,3 +19,7 @@ int main()
 	return 0;
 }
 ```
+
+## Logs example
+![изображение](https://github.com/a2p1k02/restapi/assets/35633190/84f78a54-8fe9-4c92-a541-65b63b4c2f60)
+
